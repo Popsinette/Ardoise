@@ -217,6 +217,7 @@ styles.css          le système visuel : jetons, typographie, composants
 config.js           URL du projet + clef anon (à remplir)
 config.example.js   le modèle, si vous repartez de zéro
 manifest.json       PWA : nom, icônes, affichage plein écran
+404.html            ramène dans l'app quand une adresse est mal recopiée
 sw.js               service worker : coque en cache, données jamais
 schema.sql          le schéma Postgres complet, RLS comprise
 icons/              l'icône, en SVG et en PNG aux tailles utiles
@@ -406,6 +407,14 @@ select tablename from pg_publication_tables where pubname = 'supabase_realtime';
 
 Vous devez y voir `tasks`, `rooms` et `artisans`. Sinon, relancez
 `schema.sql`.
+
+**Pages est activé mais l'URL ne répond pas / reste en 404** — activer Pages
+ne déclenche pas toujours la première construction. Poussez n'importe quel
+commit sur `main` : le build part alors immédiatement. Pour vérifier, l'onglet
+[Actions](https://github.com/Popsinette/Ardoise/actions) doit montrer une
+exécution **pages build and deployment** en succès. S'il n'y en a aucune,
+c'est qu'aucune construction n'a jamais eu lieu — et pas que le contenu est
+en cause.
 
 **Safari ne propose pas « Sur l'écran d'accueil »** — vous êtes dans Chrome ou
 Firefox. Sur iOS, seul Safari installe une PWA.
