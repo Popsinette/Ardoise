@@ -1,13 +1,10 @@
 /* Petit serveur statique pour le banc d'essai.
    Il sert /home/user, donc l'app se trouve à /Ardoise/ — exactement la forme
    qu'elle aura sur GitHub Pages, ce qui teste réellement les chemins relatifs,
-   la portée du service worker et le manifeste sous sous-chemin.
-   Il substitue aussi un config.js valide, pour que le config.js du dépôt
-   puisse rester avec ses valeurs à remplir. */
+   la portée du service worker et le manifeste sous sous-chemin. */
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { CONFIG_ESSAI } from './faux-supabase.mjs';
 
 const RACINE = '/home/user';
 const TYPES = {
@@ -20,11 +17,6 @@ const TYPES = {
 export function demarrerServeur(port = 8099) {
   const serveur = http.createServer(async (req, res) => {
     const chemin = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-
-    if (chemin === '/Ardoise/config.js') {
-      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
-      return res.end(CONFIG_ESSAI);
-    }
 
     let fichier = path.join(RACINE, chemin);
     try {

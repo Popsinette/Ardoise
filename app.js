@@ -147,12 +147,6 @@ function nomPiece(id) {
   return p ? p.nom : null;
 }
 
-function prenom(userId) {
-  if (!userId) return null;
-  const m = D.etat.membres.find((x) => x.user_id === userId);
-  return m ? m.prenom : null;
-}
-
 function nomArtisan(id) {
   const a = D.etat.artisans.find((x) => x.id === id);
   return a ? a.nom : null;
@@ -217,7 +211,7 @@ function ligneTache(t, options = {}) {
   if (t.nature === 'artisan' && t.statut !== 'a_faire' && !faite) {
     morceaux.push({ texte: libelle(STATUTS, t.statut).toLowerCase() });
   }
-  if (t.assigne_a) morceaux.push({ texte: prenom(t.assigne_a) || 'assignée' });
+  if (t.assigne_a) morceaux.push({ texte: t.assigne_a });
 
   const meta = h('div', { class: 'ligne__meta' });
   for (const m of morceaux) meta.appendChild(h('span', { class: m.classe, texte: m.texte }));
@@ -434,7 +428,7 @@ function ecranTout() {
   if (f.piece) resume.push(nomPiece(f.piece) || 'Pièce');
   if (f.nature) resume.push(libelle(NATURES, f.nature));
   if (f.statut) resume.push(libelle(STATUTS, f.statut));
-  if (f.personne) resume.push(f.personne === 'aucune' ? 'Non assignées' : prenom(f.personne) || 'Personne');
+  if (f.personne) resume.push(f.personne === 'aucune' ? 'Non assignées' : f.personne);
 
   ecran.appendChild(entete('Tout',
     h('button', {
@@ -830,9 +824,9 @@ function ficheTache(id) {
       champSaisie('Coût réel', t.cout_reel, (v) => enregistrer({ cout_reel: v === '' ? null : Number(v) }),
         { type: 'number', inputmode: 'decimal', step: '1', min: '0', placeholder: '€' }),
     ),
-    D.etat.membres.length
+    D.etat.personnes.length
       ? champPuces('Assignée à',
-          [['aucune', 'Personne'], ...D.etat.membres.map((m) => [m.user_id, m.prenom])],
+          [['aucune', 'Personne'], ...D.etat.personnes.map((p) => [p, p])],
           t.assigne_a ?? 'aucune',
           (v) => { enregistrer({ assigne_a: v === 'aucune' ? null : v }); rendre(); })
       : null,
@@ -857,7 +851,7 @@ function ficheTache(id) {
         h('span', { texte: new Date(l.fait_le).toLocaleDateString('fr-FR',
           { day: 'numeric', month: 'long', year: 'numeric' }) }),
         h('span', { class: 't-meta', texte:
-          [prenom(l.fait_par), montant(l.cout_reel)].filter(Boolean).join(' · ') }),
+          [l.fait_par, montant(l.cout_reel)].filter(Boolean).join(' · ') }),
       ));
     }
     histo.appendChild(ul);
@@ -1180,9 +1174,9 @@ function ouvrirFiltres() {
         { deselectionnable: true, cibles: true }),
       champPuces('Statut', STATUTS, f.statut, (v) => { f.statut = v; repeindre(); },
         { deselectionnable: true, cibles: true }),
-      D.etat.membres.length
+      D.etat.personnes.length
         ? champPuces('Personne',
-            [['aucune', 'Non assignées'], ...D.etat.membres.map((m) => [m.user_id, m.prenom])],
+            [['aucune', 'Non assignées'], ...D.etat.personnes.map((p) => [p, p])],
             f.personne, (v) => { f.personne = v; repeindre(); }, { deselectionnable: true, cibles: true })
         : null,
       champPuces('Grouper par',
@@ -1210,12 +1204,6 @@ function ouvrirReglages() {
   const theme = localStorage.getItem('ardoise-theme') || 'auto';
   const corps = h('div', {});
 
-  corps.appendChild(h('div', { class: 'reglage' },
-    h('span', { class: 'champ__intitule', texte: 'Foyer' }),
-    h('p', { class: 'reglage__valeur', texte:
-      `${D.etat.foyer?.nom || 'Maison'} — ${D.etat.membres.map((m) => m.prenom).join(' et ') || '…'}` }),
-  ));
-
   corps.appendChild(champPuces('Apparence',
     [['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']], theme,
     (v) => {
@@ -1225,21 +1213,21 @@ function ouvrirReglages() {
       ouvrirReglages();
     }, { cibles: true }));
 
-  const etatSync = !D.etat.enLigne
-    ? 'Hors connexion. Vos modifications partiront au retour du réseau.'
-    : D.etat.enAttente
-      ? `${D.etat.enAttente} modification${D.etat.enAttente > 1 ? 's' : ''} en attente d’envoi.`
-      : D.etat.depuisCache
-        ? 'Affichage de la dernière liste connue.'
-        : 'Tout est synchronisé.';
+  // Les personnes du foyer : de simples prénoms, séparés par des virgules.
+  // Il n'y a pas de comptes dans Ardoise, donc pas de liste à administrer —
+  // juste de quoi savoir qui s'est engagé à faire quoi.
+  const champPersonnes = h('input', { class: 'saisie', type: 'text',
+    value: D.etat.personnes.join(', '), placeholder: 'Pauline, Julien',
+    'aria-label': 'Prénoms des personnes du foyer', autocapitalize: 'words' });
+  champPersonnes.addEventListener('change', async () => {
+    try { await D.definirPersonnes(champPersonnes.value.split(',')); }
+    catch (e) { signaler(D.messageErreur(e)); }
+  });
   corps.appendChild(h('div', { class: 'reglage' },
-    h('span', { class: 'champ__intitule', texte: 'Synchronisation' }),
-    h('p', { class: 'reglage__valeur', texte: etatSync }),
-    h('button', { class: 'bouton bouton--trait', type: 'button', texte: 'Resynchroniser maintenant',
-      onclick: async () => {
-        try { await D.rejouer(); await D.toutCharger(); fermerVolet(); signaler('Liste à jour.'); }
-        catch (e) { signaler(D.messageErreur(e)); }
-      } }),
+    h('span', { class: 'champ__intitule', texte: 'Personnes' }),
+    h('p', { class: 't-meta', texte:
+      'Les prénoms proposés au moment d\u2019assigner une tâche. Séparez-les par des virgules.' }),
+    champPersonnes,
   ));
 
   corps.appendChild(h('div', { class: 'reglage' },
@@ -1249,21 +1237,78 @@ function ouvrirReglages() {
     listePiecesReglables(),
   ));
 
+  corps.appendChild(blocSauvegarde());
+
   corps.appendChild(h('div', { class: 'reglage' },
-    D.etat.enAttente
-      ? h('p', { class: 'message', texte:
-          `${D.etat.enAttente} modification${D.etat.enAttente > 1 ? 's' : ''} n\u2019${D.etat.enAttente > 1 ? 'ont' : 'a'} pas encore été envoyée${D.etat.enAttente > 1 ? 's' : ''}. Reconnectez-vous au réseau avant de vous déconnecter, sinon elle${D.etat.enAttente > 1 ? 's seront perdues' : ' sera perdue'}.` })
-      : null,
-    h('button', { class: 'bouton bouton--texte bouton--danger', type: 'button',
-      texte: 'Se déconnecter de cet appareil',
-      onclick: async () => {
-        await D.deconnecter();
-        fermerVolet();
-        location.reload();
-      } }),
+    zoneSuppression('Effacer toutes les données', 'Tout effacer définitivement', async () => {
+      await D.toutEffacer();
+      fermerVolet();
+      vue.fiche = null;
+      rendre();
+      signaler('Ardoise est repartie de zéro.');
+    }),
   ));
 
   ouvrirVolet('Réglages', corps, { rendreALaFermeture: true });
+}
+
+/** Sans serveur, l'export est la seule sauvegarde — et le seul moyen de
+    passer sa liste à l'autre téléphone. On le dit franchement plutôt que
+    de laisser croire à une synchronisation qui n'existe pas. */
+function blocSauvegarde() {
+  const nbTaches = D.etat.taches.length;
+
+  const fichier = h('input', { type: 'file', accept: 'application/json,.json',
+    class: 'invisible', 'aria-hidden': 'true', tabindex: '-1' });
+
+  fichier.addEventListener('change', async () => {
+    const f = fichier.files && fichier.files[0];
+    fichier.value = '';
+    if (!f) return;
+    try {
+      const texte = await f.text();
+      const combien = await D.importer(texte);
+      fermerVolet();
+      vue.fiche = null;
+      rendre();
+      signaler(`${combien} tâche${combien > 1 ? 's' : ''} restaurée${combien > 1 ? 's' : ''}.`);
+    } catch (e) { signaler(D.messageErreur(e)); }
+  });
+
+  const zoneImport = h('div', {});
+  const boutonImport = h('button', { class: 'bouton bouton--trait', type: 'button',
+    texte: 'Restaurer une sauvegarde' });
+  boutonImport.addEventListener('click', () => {
+    zoneImport.replaceChildren(
+      h('p', { class: 'message', texte:
+        'Restaurer remplace tout ce qui est actuellement sur ce téléphone. Exportez d\u2019abord si vous avez un doute.' }),
+      h('div', { class: 'duo' },
+        h('button', { class: 'bouton bouton--trait', type: 'button', texte: 'Annuler',
+          onclick: () => zoneImport.replaceChildren(boutonImport) }),
+        h('button', { class: 'bouton bouton--plein', type: 'button', texte: 'Choisir le fichier',
+          onclick: () => fichier.click() }),
+      ),
+    );
+  });
+  zoneImport.appendChild(boutonImport);
+
+  return h('div', { class: 'reglage' },
+    h('span', { class: 'champ__intitule', texte: 'Sauvegarde' }),
+    h('p', { class: 't-meta', texte:
+      'Vos données ne vivent que sur ce téléphone : aucun serveur ne les détient, donc personne ne peut vous les rendre si elles disparaissent. L\u2019export est votre filet — et c\u2019est aussi ainsi qu\u2019on passe sa liste à l\u2019autre téléphone.' }),
+    h('button', { class: 'bouton bouton--plein', type: 'button',
+      texte: `Exporter ${nbTaches} tâche${nbTaches > 1 ? 's' : ''}`,
+      disabled: !nbTaches && !D.etat.artisans.length,
+      onclick: async () => {
+        try {
+          const issue = await D.exporter();
+          if (issue === 'telecharge') signaler('Sauvegarde téléchargée.');
+          else if (issue === 'partage') signaler('Sauvegarde envoyée.');
+        } catch (e) { signaler(D.messageErreur(e)); }
+      } }),
+    zoneImport,
+    fichier,
+  );
 }
 
 function listePiecesReglables() {
@@ -1319,141 +1364,17 @@ function signaler(texte, action = null) {
   }, action ? 6000 : 4000);
 }
 
-/* ============================================================== connexion == */
-
-const etatConnexion = { etape: 'email', email: '', envoi: false, erreur: null, info: null };
-
+/** La marque : l'ardoise et son trait de craie, le même dessin que l'icône. */
 function marque() {
   const span = document.createElement('span');
   span.setAttribute('aria-hidden', 'true');
   span.style.display = 'inline-flex';
   span.innerHTML =
-    '<svg width="44" height="44" viewBox="0 0 48 48" fill="none">' +
-    '<path d="M9 5h30v25.5C39 38.5 32.3 44 24 44S9 38.5 9 30.5z" fill="var(--volet)"/>' +
-    '<path d="M16.5 23.5l5.4 5.6L33 17.5" stroke="var(--platre)" stroke-width="3.4" ' +
-    'stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<circle cx="24" cy="10.5" r="1.7" fill="var(--laiton)"/></svg>';
+    '<svg width="44" height="44" viewBox="0 0 512 512">' +
+    '<rect width="512" height="512" rx="112" fill="var(--volet)"/>' +
+    '<path fill="var(--platre)" d="M125.5 251.3 L202.4 322 L388.5 141.3 ' +
+    'A10 10 0 0 1 403.5 154.7 L217.2 389.9 L98.5 280.7 A20 20 0 0 1 125.5 251.3 Z"/></svg>';
   return span;
-}
-
-function ecranConnexion() {
-  const e = etatConnexion;
-  const bloc = h('div', { class: 'connexion' },
-    h('div', { class: 'connexion__marque' }, marque(),
-      h('span', { class: 'connexion__nom', texte: 'Ardoise' })),
-  );
-
-  if (e.etape === 'email') {
-    const champ = h('input', { class: 'saisie', type: 'email', value: e.email,
-      inputmode: 'email', autocomplete: 'email', autocapitalize: 'off', spellcheck: 'false',
-      enterkeyhint: 'send', placeholder: 'vous@exemple.fr', 'aria-label': 'Adresse email' });
-
-    const envoyer = async () => {
-      const adresse = champ.value.trim();
-      if (!adresse.includes('@')) { e.erreur = 'Il manque une adresse email valide.'; rendre(); return; }
-      e.envoi = true; e.erreur = null; rendre();
-      try {
-        await D.envoyerCode(adresse);
-        Object.assign(e, { email: adresse, etape: 'code', envoi: false,
-          info: `Un code à six chiffres part vers ${adresse}. Il arrive en moins d’une minute.` });
-      } catch (err) {
-        Object.assign(e, { envoi: false, erreur: D.messageErreur(err) });
-      }
-      rendre();
-    };
-    champ.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); envoyer(); } });
-
-    bloc.append(
-      h('p', { class: 'connexion__intro', texte:
-        'Les travaux de la maison, sur les deux téléphones. Entrez votre adresse : vous recevrez un code à six chiffres, à saisir ici même.' }),
-      e.erreur ? h('p', { class: 'message', texte: e.erreur }) : null,
-      h('label', { class: 'champ' },
-        h('span', { class: 'champ__intitule', texte: 'Adresse email' }), champ),
-      h('button', { class: 'bouton bouton--plein', type: 'button',
-        texte: e.envoi ? 'Envoi…' : 'Recevoir un code', disabled: e.envoi, onclick: envoyer }),
-    );
-    setTimeout(() => champ.focus(), 60);
-    return bloc;
-  }
-
-  const champ = h('input', { class: 'saisie code', type: 'text', inputmode: 'numeric',
-    autocomplete: 'one-time-code', maxlength: '6', pattern: '[0-9]*',
-    placeholder: '••••••', 'aria-label': 'Code à six chiffres' });
-
-  const verifier = async () => {
-    const code = champ.value.replace(/\D/g, '');
-    if (code.length !== 6) { e.erreur = 'Le code compte six chiffres.'; rendre(); return; }
-    e.envoi = true; e.erreur = null; rendre();
-    try {
-      await D.verifierCode(e.email, code);
-      Object.assign(etatConnexion, { etape: 'email', email: '', envoi: false, erreur: null, info: null });
-    } catch (err) {
-      Object.assign(e, { envoi: false, erreur: D.messageErreur(err) });
-      rendre();
-    }
-  };
-
-  champ.addEventListener('input', () => {
-    champ.value = champ.value.replace(/\D/g, '').slice(0, 6);
-    if (champ.value.length === 6) verifier();
-  });
-  champ.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); verifier(); } });
-
-  bloc.append(
-    e.erreur ? h('p', { class: 'message', texte: e.erreur }) : null,
-    e.info && !e.erreur ? h('p', { class: 'message message--ok', texte: e.info }) : null,
-    h('label', { class: 'champ' },
-      h('span', { class: 'champ__intitule', texte: 'Code reçu par email' }), champ),
-    h('button', { class: 'bouton bouton--plein', type: 'button',
-      texte: e.envoi ? 'Vérification…' : 'Se connecter', disabled: e.envoi, onclick: verifier }),
-    h('div', { class: 'connexion__liens' },
-      h('button', { class: 'bouton bouton--texte', type: 'button', texte: 'Renvoyer un code',
-        onclick: async () => {
-          try { await D.envoyerCode(e.email); e.info = 'Nouveau code envoyé.'; e.erreur = null; }
-          catch (err) { e.erreur = D.messageErreur(err); }
-          rendre();
-        } }),
-      h('button', { class: 'bouton bouton--texte', type: 'button', texte: 'Changer d’adresse',
-        onclick: () => { Object.assign(e, { etape: 'email', erreur: null, info: null }); rendre(); } }),
-    ),
-    h('p', { class: 't-meta', style: 'margin-top:24px', texte:
-      'Pas de lien à cliquer : sur iPhone, un lien ouvrirait Safari au lieu de l’app, et la connexion se perdrait en route.' }),
-  );
-  setTimeout(() => champ.focus(), 60);
-  return bloc;
-}
-
-function ecranConfig() {
-  return h('div', { class: 'connexion' },
-    h('div', { class: 'connexion__marque' }, marque(),
-      h('span', { class: 'connexion__nom', texte: 'Ardoise' })),
-    h('p', { class: 'message', texte: D.etat.erreurTechnique ||
-      'config.js n’est pas encore rempli.' }),
-    h('p', { class: 'connexion__intro', texte:
-      'Ouvrez config.js à la racine du dépôt et remplacez les deux valeurs par l’URL de votre projet Supabase et sa clef anon (Project Settings ▸ API Keys). Poussez sur main, attendez la mise en ligne, puis rouvrez cette page.' }),
-    h('p', { class: 't-meta', texte:
-      'Ces deux valeurs sont publiques par conception : ce sont les règles RLS de schema.sql qui protègent vos données. La clef service_role, elle, ne doit jamais figurer dans le dépôt.' }),
-  );
-}
-
-function ecranSansFoyer() {
-  const email = D.etat.session?.user?.email || 'cette adresse';
-  const uid = D.etat.session?.user?.id || '…';
-  return h('div', { class: 'connexion' },
-    h('div', { class: 'connexion__marque' }, marque(),
-      h('span', { class: 'connexion__nom', texte: 'Ardoise' })),
-    h('p', { class: 'message message--info', texte:
-      `Le compte ${email} existe, mais il n’est rattaché à aucun foyer.` }),
-    h('p', { class: 'connexion__intro', texte:
-      'C’est la dernière étape de l’installation, et elle se fait une seule fois. Dans Supabase, ouvrez l’éditeur SQL et exécutez la requête ci-dessous en remplaçant le prénom. La marche à suivre complète est dans le README, section « Rattacher les comptes ».' }),
-    h('pre', { class: 'code-bloc', texte:
-      "insert into public.household_members (user_id, household_id, prenom)\n" +
-      `values ('${uid}',\n        (select id from public.households limit 1),\n        'Prénom');` }),
-    h('button', { class: 'bouton bouton--plein', type: 'button', texte: 'C’est fait — réessayer',
-      onclick: () => location.reload() }),
-    h('button', { class: 'bouton bouton--texte', type: 'button', texte: 'Se déconnecter',
-      onclick: async () => { await D.deconnecter(); location.reload(); } }),
-  );
 }
 
 /* ================================================================ coque == */
@@ -1496,36 +1417,6 @@ function allerA(onglet) {
   window.scrollTo(0, 0);
 }
 
-/** Le bandeau d'état : discret, il ne dit quelque chose que lorsqu'il y a
-    quelque chose à dire, et il dit toujours ce qui va se passer ensuite. */
-function majBandeau() {
-  let bandeau = document.getElementById('bandeau');
-  if (!bandeau) {
-    bandeau = h('div', { class: 'bandeau', id: 'bandeau', role: 'status' });
-    document.body.appendChild(bandeau);
-  }
-
-  const rejet = D.etat.rejetees[0];
-  let texte = null;
-  if (rejet) {
-    texte = `Une modification n’a pas pu être envoyée : ${rejet.pourquoi}`;
-  } else if (!D.etat.enLigne || D.etat.degrade) {
-    texte = D.etat.enAttente
-      ? `Hors connexion — ${D.etat.enAttente} modification${D.etat.enAttente > 1 ? 's' : ''} en attente.`
-      : 'Hors connexion — vous voyez la dernière liste connue.';
-  } else if (D.etat.enAttente) {
-    texte = `Envoi de ${D.etat.enAttente} modification${D.etat.enAttente > 1 ? 's' : ''}…`;
-  }
-
-  if (!texte) { bandeau.hidden = true; return; }
-  bandeau.hidden = false;
-  bandeau.replaceChildren(h('span', { class: 'pastille' }), h('span', { texte }));
-  if (rejet) {
-    bandeau.appendChild(h('button', { class: 'bandeau__action', type: 'button', texte: 'Compris',
-      onclick: () => { D.etat.rejetees.shift(); majBandeau(); } }));
-  }
-}
-
 /* ================================================================ rendu == */
 
 function appliquerTheme() {
@@ -1541,18 +1432,10 @@ const ECRANS = {
 
 function rendre() {
   appliquerTheme();
-  const phase = D.etat.phase;
 
-  if (phase !== 'prete') {
+  if (D.etat.phase !== 'prete') {
     document.body.classList.add('sans-chrome');
-    const ecran =
-      phase === 'config' ? ecranConfig() :
-      phase === 'sansfoyer' ? ecranSansFoyer() :
-      phase === 'connexion' ? ecranConnexion() :
-      h('div', { class: 'connexion' }, h('div', { class: 'connexion__marque' }, marque()));
-    racine.replaceChildren(ecran);
-    const b = document.getElementById('bandeau');
-    if (b) b.hidden = true;
+    racine.replaceChildren(D.etat.phase === 'panne' ? ecranPanne() : ecranDemarrage());
     return;
   }
 
@@ -1561,13 +1444,31 @@ function rendre() {
     racine.replaceChildren(vue.fiche.type === 'tache'
       ? ficheTache(vue.fiche.id) : ficheArtisan(vue.fiche.id));
     for (const t of racine.querySelectorAll('textarea.fiche__titre')) ajusterHauteur(t);
-    majBandeau();
     return;
   }
 
   document.body.classList.remove('sans-chrome');
   racine.replaceChildren((ECRANS[vue.onglet] || ecranSemaine)(), barreEcriture(), barreOnglets());
-  majBandeau();
+}
+
+/** Le temps d'ouvrir la base : quelques dizaines de millisecondes en
+    pratique. On montre la marque plutôt qu'un écran blanc. */
+function ecranDemarrage() {
+  return h('div', { class: 'connexion' },
+    h('div', { class: 'connexion__marque' }, marque(),
+      h('span', { class: 'connexion__nom', texte: 'Ardoise' })));
+}
+
+function ecranPanne() {
+  return h('div', { class: 'connexion' },
+    h('div', { class: 'connexion__marque' }, marque(),
+      h('span', { class: 'connexion__nom', texte: 'Ardoise' })),
+    h('p', { class: 'message', texte: D.etat.erreur || 'Le stockage est inaccessible.' }),
+    h('p', { class: 'connexion__intro', texte:
+      'Ardoise range tout dans le stockage privé de Safari. En navigation privée, il est bloqué — ouvrez l\u2019app depuis l\u2019écran d\u2019accueil, ou dans un onglet normal.' }),
+    h('button', { class: 'bouton bouton--plein', type: 'button', texte: 'Réessayer',
+      onclick: () => location.reload() }),
+  );
 }
 
 /* ============================================================ démarrage == */
@@ -1580,21 +1481,8 @@ D.surChangement((detail) => {
 
   // On ne redessine pas sous les doigts de quelqu'un qui est en train
   // d'écrire : le changement attendra la sortie du champ.
-  if (saisieEnCours && detail.raison !== 'reseau' && detail.raison !== 'file') {
-    redessinerAuBlur = true;
-    majBandeau();
-    return;
-  }
-
-  if (detail.raison === 'reseau' || detail.raison === 'file') { majBandeau(); return; }
+  if (saisieEnCours) { redessinerAuBlur = true; return; }
   rendre();
-
-  // Signaler ce que l'autre téléphone vient de faire : un filet de laiton
-  // qui s'efface, et rien d'autre.
-  if (detail.raison === 'tempsreel' && detail.signaler && detail.id) {
-    const ligne = racine.querySelector(`[data-tache="${CSS.escape(detail.id)}"]`);
-    if (ligne) ligne.classList.add('ligne--change');
-  }
 });
 
 document.addEventListener('focusout', () => {
@@ -1624,13 +1512,7 @@ if (window.visualViewport) {
 
 appliquerTheme();
 rendre();
-D.demarrer().catch((e) => {
-  console.error(e);
-  racine.replaceChildren(h('div', { class: 'connexion' },
-    h('p', { class: 'message', texte: D.messageErreur(e) }),
-    h('button', { class: 'bouton bouton--plein', type: 'button', texte: 'Réessayer',
-      onclick: () => location.reload() })));
-});
+D.demarrer();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
