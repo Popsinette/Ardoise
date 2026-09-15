@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover : sans lui, iOS réserve des bandes noires autour de
+     l'encoche et la barre d'accueil, et env(safe-area-inset-*) vaut zéro. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ardoise — les travaux de la maison</title>
+<meta name="description" content="Les travaux de la maison sur les deux téléphones : bricolage, entretien récurrent et chantiers d'artisans.">
+
+<!-- La barre d'état iOS prend la couleur du fond, dans les deux modes. -->
+<meta name="theme-color" content="#F2F0EA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141817" media="(prefers-color-scheme: dark)">
+
+<!-- Tous les chemins sont relatifs : GitHub Pages sert l'app depuis un
+     sous-dossier (…/Ardoise/), un chemin absolu pointerait à côté. -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/ardoise.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+
+<!-- iOS ignore le manifeste pour l'ajout à l'écran d'accueil et lit
+     encore ces deux balises. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ardoise">
+<meta name="format-detection" content="telephone=no">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app"></div>
+
+  <noscript>
+    <div style="padding:24px;font-family:system-ui;line-height:1.5">
+      <h1 style="font-size:24px;margin:0 0 8px">Ardoise</h1>
+      <p>Cette application a besoin de JavaScript. Activez-le dans les réglages
+         de votre navigateur, puis rechargez la page.</p>
+    </div>
+  </noscript>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

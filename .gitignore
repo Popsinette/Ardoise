@@ -1,0 +1,5 @@
+.DS_Store
+Thumbs.db
+
+# Captures du banc d'essai : régénérables avec `node .essais/banc.mjs`.
+.essais/captures/

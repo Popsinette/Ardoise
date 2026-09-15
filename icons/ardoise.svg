@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Ardoise">
+  <title>Ardoise</title>
+  <!-- Le fond est l'ardoise elle-même : le bleu-vert profond d'un volet peint.
+       Pas de silhouette rapportée — à 40 px sur un écran d'accueil, une seule
+       idée survit, et c'est le geste. -->
+  <rect width="512" height="512" fill="#14403C"/>
+  <!-- Le trait de craie. Contour plein plutôt que trait d'épaisseur constante :
+       épais à l'appui, effilé à la levée, comme un vrai bâton de craie. -->
+  <path fill="#F2F0EA"
+        d="M125.5 251.3 L202.4 322 L388.5 141.3 A10 10 0 0 1 403.5 154.7
+           L217.2 389.9 L98.5 280.7 A20 20 0 0 1 125.5 251.3 Z"/>
+</svg>
